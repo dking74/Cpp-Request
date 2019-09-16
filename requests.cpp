@@ -2,8 +2,10 @@
 
 #include <algorithm>
 #include <iostream>
+#include <cstdlib>
+#include <cstring>
 
-#include <boost/algorithm/string/replace.hpp>
+#include <curl/curl.h>
 
 namespace requests {
 
@@ -28,19 +30,26 @@ static size_t readBuffer(char* contents, int size, int nmemb, void* userp) {
   return realsize;
 }
 
-// This is is an internal method to structure the basics
-// of a libcurl request. It takes the curl handle and adds
-// callback function to retrieve results and adds http headers
-// for all basic requests.
-static void base_request (CURL* curl, const std::string url, struct MemoryStruct& chunk, struct curl_slist* headers) {
-  // Set the properties of all requests.
-  curl_easy_setopt(curl, CURLOPT_URL, url.c_str()); 
-  curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
-  curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, readBuffer);
-  curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&chunk);
-  curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
-  curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
-  curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+// Internal function to replace all spaces with 
+// encoded url %20 inside of a user-entered url
+static void replace_url_spaces(std::string& url) {
+  std::string replace = "%20";
+
+  size_t pos = 0;
+  while((pos = url.find(" ", pos)) != std::string::npos) {
+    url.replace(pos, url.length(), replace);
+    pos += replace.length();
+  }
+}
+
+static struct curl_slist* convert_map_to_curllist(std::map<std::string, std::string> headers) {
+  struct curl_slist* header = NULL;
+  for (const auto& current_header : headers) {
+    std::string c_header = current_header.first + ": " + current_header.second;
+    header = curl_slist_append(header, c_header.c_str());
+  }
+
+  return header;
 }
 
 // This is an internal method to map a string method for libcurl auth
@@ -72,8 +81,25 @@ static void add_auth_header(CURL* curl, std::tuple<std::string, std::string> aut
   curl_easy_setopt(curl, CURLOPT_USERPWD, std::get<1>(auth).c_str());
 }
 
+// This is is an internal method to structure the basics
+// of a libcurl request. It takes the curl handle and adds
+// callback function to retrieve results and adds http headers
+// for all basic requests.
+static void base_request (CURL* curl, const std::string url, struct MemoryStruct& chunk, std::map<std::string, std::string> headers) {
+  struct curl_slist* header = convert_map_to_curllist(headers);  
+
+  // Set the properties of all requests.
+  curl_easy_setopt(curl, CURLOPT_URL, url.c_str()); 
+  curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+  curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, readBuffer);
+  curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&chunk);
+  curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+  curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+  curl_easy_setopt(curl, CURLOPT_HTTPHEADER, header);
+}
+
 char* get(std::string url, 
-          struct curl_slist* headers, 
+          std::map<std::string, std::string> headers, 
           std::tuple<std::string, std::string> auth) {
   CURL* curl;
   CURLcode res;
@@ -86,10 +112,8 @@ char* get(std::string url,
     chunk.memory = (char*)malloc(1);
     chunk.size = 0;
 
-    // Remove all spaces from url to make compatible with browser
-    boost::replace_all(url, " ", "%20");
-
     // Define properties of request
+    replace_url_spaces(url);
     base_request(curl, url, chunk, headers);
     curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);
     add_auth_header(curl, auth);
@@ -105,7 +129,7 @@ char* get(std::string url,
 
 char* post(std::string url, 
            const char* data, 
-           struct curl_slist* headers, 
+           std::map<std::string, std::string> headers,
            std::tuple<std::string, std::string> auth) {
   CURL* curl;
   CURLcode res;
@@ -118,10 +142,8 @@ char* post(std::string url,
     chunk.memory = (char*)malloc(1);
     chunk.size = 0;
 
-    // Remove all spaces from url to make compatible with browser
-    boost::replace_all(url, " ", "%20");
-
     // Define properties of request
+    replace_url_spaces(url);
     base_request(curl, url, chunk, headers);
     curl_easy_setopt(curl, CURLOPT_HTTPPOST, 1L);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, data);
@@ -139,9 +161,8 @@ char* post(std::string url,
 char* request(std::string method, 
               std::string url, 
               const char* data, 
-              struct curl_slist* headers, 
+              std::map<std::string, std::string> headers,
               std::tuple<std::string, std::string> auth) {
-  boost::replace_all(url, " ", "%20");
   std::transform(method.begin(), method.end(), method.begin(), ::toupper);
   
   if (method.compare("GET") == 0) return get(url, headers, auth);

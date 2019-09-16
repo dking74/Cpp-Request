@@ -1,13 +1,9 @@
 #ifndef _REQUESTS_H_
 #define _REQUESTS_H_
 
-#include <memory.h>
-
-#include <map>
 #include <string>
 #include <tuple>
-
-#include <curl/curl.h>
+#include <map>
 
 namespace requests {
 
@@ -21,7 +17,7 @@ struct MemoryStruct {
  * Make a get API call
  */
 char* get(std::string url, 
-          struct curl_slist* headers, 
+          std::map<std::string, std::string> headers, 
           std::tuple<std::string, std::string> auth = std::make_tuple("BASIC", "admin:admin"));
 
 /**
@@ -29,7 +25,7 @@ char* get(std::string url,
  */
 char* post(std::string url,
            const char* data, 
-           struct curl_slist* headers, 
+           std::map<std::string, std::string> headers,
            std::tuple<std::string, std::string> auth = std::make_tuple("BASIC", "admin:admin"));
 
 /**
@@ -51,7 +47,7 @@ char* post(std::string url,
 char* request(std::string method, 
               std::string url, 
               const char* data, 
-              struct curl_slist* headers, 
+              std::map<std::string, std::string> headers,
               std::tuple<std::string, std::string> auth = std::make_tuple("BASIC", "admin:admin"));
 
 }; // namespace requests

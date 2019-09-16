@@ -28,7 +28,7 @@ STATIC_LIB = librequests.a
 all: ${OBJECTS} ${STATIC_LIB} ${SHARED_LIB}
 
 ${SHARED_LIB}: ${OBJECTS}
-	${LD} ${LDFLAGS} $@ ${OBJECTS} -L${LIBS} -I${LIBDIR}
+	${LD} ${LDFLAGS} $@ ${OBJECTS} -L${LIBDIR} ${LIBS} -I${INCDIR}
 
 ${STATIC_LIB}: ${OBJECTS}
 	${AR} ${ARFLAGS} $@ ${OBJECTS}
